@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
-from app.config import OPENAI_API_KEY, OPENAI_MODEL
+from app.config import get_api_key, get_model
 from app.models.schemas import AnalysisRequest
 from app.core.analyzer import analyze_resume
 
@@ -33,14 +33,17 @@ with st.sidebar:
     st.markdown("- 📝 生成求职信")
     st.markdown("---")
 
-    # API 状态检查
-    if OPENAI_API_KEY:
+    # API 状态检查（运行时读取）
+    api_key = get_api_key()
+    model_name = get_model()
+
+    if api_key:
         st.success("✅ API Key 已配置")
     else:
         st.warning("⚠️ 未配置 API Key（当前使用 Mock 模式）")
         st.caption("配置后将使用真实 AI 分析")
 
-    st.caption(f"模型: {OPENAI_MODEL}")
+    st.caption(f"模型: {model_name}")
 
 # ==================== 主页面 ====================
 st.title("📄 AI 求职副驾驶")

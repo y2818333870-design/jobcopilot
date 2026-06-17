@@ -19,34 +19,29 @@ except ImportError:
     pass
 
 
-def get_config(key: str, default: str = "") -> str:
-    """
-    读取配置，优先级：
-    1. 环境变量
-    2. st.secrets
-    3. 默认值
-    """
-    # 先检查环境变量
-    value = os.getenv(key)
-    if value:
-        return value
-
-    # 再检查 st.secrets（延迟导入，避免模块级别报错）
+def _read_secrets(key: str):
+    """从 st.secrets 读取配置"""
     try:
         import streamlit as st
-        # st.secrets 类似字典，但需要用 .get() 方法
-        if key in st.secrets:
-            return str(st.secrets[key])
+        return st.secrets.get(key)
     except Exception:
-        pass
-
-    return default
+        return None
 
 
-# ==================== AI 配置 ====================
-OPENAI_API_KEY: str = get_config("OPENAI_API_KEY", "")
-OPENAI_BASE_URL: str = get_config("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL: str = get_config("OPENAI_MODEL", "gpt-4o-mini")
+def get_api_key() -> str:
+    """获取 API Key"""
+    return os.getenv("OPENAI_API_KEY") or _read_secrets("OPENAI_API_KEY") or ""
+
+
+def get_base_url() -> str:
+    """获取 API Base URL"""
+    return os.getenv("OPENAI_BASE_URL") or _read_secrets("OPENAI_BASE_URL") or "https://api.openai.com/v1"
+
+
+def get_model() -> str:
+    """获取模型名称"""
+    return os.getenv("OPENAI_MODEL") or _read_secrets("OPENAI_MODEL") or "gpt-4o-mini"
+
 
 # ==================== 路径配置 ====================
 DATA_DIR = BASE_DIR / "data"
