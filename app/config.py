@@ -18,13 +18,6 @@ try:
 except ImportError:
     pass
 
-# 尝试加载 st.secrets（Streamlit Cloud）
-try:
-    import streamlit as st
-    secrets = st.secrets
-except (ImportError, AttributeError):
-    secrets = {}
-
 
 def get_config(key: str, default: str = "") -> str:
     """
@@ -33,7 +26,21 @@ def get_config(key: str, default: str = "") -> str:
     2. st.secrets
     3. 默认值
     """
-    return os.getenv(key) or secrets.get(key, default)
+    # 先检查环境变量
+    value = os.getenv(key)
+    if value:
+        return value
+
+    # 再检查 st.secrets（延迟导入，避免模块级别报错）
+    try:
+        import streamlit as st
+        value = st.secrets.get(key)
+        if value:
+            return value
+    except (ImportError, AttributeError, FileNotFoundError):
+        pass
+
+    return default
 
 
 # ==================== AI 配置 ====================
