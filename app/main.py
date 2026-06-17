@@ -45,6 +45,20 @@ with st.sidebar:
 
     st.caption(f"模型: {model_name}")
 
+    # ============ 调试信息（可删除） ============
+    st.markdown("---")
+    st.markdown("### 调试信息")
+    try:
+        import streamlit as st_debug
+        secrets_keys = list(st_debug.secrets.keys()) if st_debug.secrets else []
+        st.caption(f"Secrets keys: {secrets_keys}")
+        if "OPENAI_API_KEY" in st_debug.secrets:
+            key_val = st_debug.secrets["OPENAI_API_KEY"]
+            st.caption(f"API Key 前4位: {key_val[:4]}****")
+    except Exception as e:
+        st.error(f"读取 Secrets 失败: {e}")
+    # ============================================
+
 # ==================== 主页面 ====================
 st.title("📄 AI 求职副驾驶")
 st.markdown("**输入简历 + 粘贴 JD = 获取匹配分析和优化建议**")
