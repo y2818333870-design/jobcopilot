@@ -34,10 +34,10 @@ def get_config(key: str, default: str = "") -> str:
     # 再检查 st.secrets（延迟导入，避免模块级别报错）
     try:
         import streamlit as st
-        value = st.secrets.get(key)
-        if value:
-            return value
-    except (ImportError, AttributeError, FileNotFoundError):
+        # st.secrets 类似字典，但需要用 .get() 方法
+        if key in st.secrets:
+            return str(st.secrets[key])
+    except Exception:
         pass
 
     return default
