@@ -1,22 +1,45 @@
 """
 配置管理模块
-从 .env 文件读取配置，统一管理
+支持两种配置方式：
+1. 本地开发：从 .env 文件读取
+2. Streamlit Cloud：从 st.secrets 读取
 """
 
 import os
 from pathlib import Path
-from dotenv import load_dotenv
 
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# 加载 .env
-load_dotenv(BASE_DIR / ".env")
+# 尝试加载 .env（本地开发）
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / ".env")
+except ImportError:
+    pass
+
+# 尝试加载 st.secrets（Streamlit Cloud）
+try:
+    import streamlit as st
+    secrets = st.secrets
+except (ImportError, AttributeError):
+    secrets = {}
+
+
+def get_config(key: str, default: str = "") -> str:
+    """
+    读取配置，优先级：
+    1. 环境变量
+    2. st.secrets
+    3. 默认值
+    """
+    return os.getenv(key) or secrets.get(key, default)
+
 
 # ==================== AI 配置 ====================
-OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY: str = get_config("OPENAI_API_KEY", "")
+OPENAI_BASE_URL: str = get_config("OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL: str = get_config("OPENAI_MODEL", "gpt-4o-mini")
 
 # ==================== 路径配置 ====================
 DATA_DIR = BASE_DIR / "data"
