@@ -4,6 +4,7 @@
 """
 
 import json
+import streamlit as st
 from openai import OpenAI
 from app.config import get_api_key, get_base_url, get_model
 from app.models.schemas import (
@@ -51,18 +52,31 @@ ANALYZE_PROMPT = """你是一位资深的求职顾问。请分析以下简历与
 """
 
 
-def analyze_resume(request: AnalysisRequest) -> AnalysisResult:
+def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
     """
     分析简历与岗位的匹配度
     调用 MIMO API 进行真实分析
+    
+    返回: (分析结果, 调试信息)
     """
     api_key = get_api_key()
     base_url = get_base_url()
     model = get_model()
+    
+    debug_info = {
+        "api_key_configured": bool(api_key),
+        "base_url": base_url,
+        "model": model,
+        "api_called": False,
+        "error": None,
+        "is_mock": False,
+    }
 
     # 如果没有配置 API Key，返回 Mock 数据
     if not api_key:
-        return _mock_analyze(request)
+        debug_info["is_mock"] = True
+        debug_info["error"] = "未配置 API Key"
+        return _mock_analyze(request), debug_info
 
     try:
         # 初始化 OpenAI 客户端（兼容 MIMO API）
@@ -78,6 +92,7 @@ def analyze_resume(request: AnalysisRequest) -> AnalysisResult:
         )
 
         # 调用 API
+        debug_info["api_called"] = True
         response = client.chat.completions.create(
             model=model,
             messages=[
@@ -90,12 +105,15 @@ def analyze_resume(request: AnalysisRequest) -> AnalysisResult:
 
         # 解析响应
         content = response.choices[0].message.content
-        return _parse_response(content)
+        result = _parse_response(content)
+        return result, debug_info
 
     except Exception as e:
-        # API 调用失败，返回 Mock 数据并打印错误
+        # API 调用失败，返回 Mock 数据并记录错误
+        debug_info["is_mock"] = True
+        debug_info["error"] = str(e)
         print(f"API 调用失败: {e}")
-        return _mock_analyze(request)
+        return _mock_analyze(request), debug_info
 
 
 def _parse_response(content: str) -> AnalysisResult:

@@ -97,7 +97,15 @@ if analyze_btn:
 
         # 调用分析
         with st.spinner("正在分析中..."):
-            result = analyze_resume(request)
+            result, debug_info = analyze_resume(request)
+
+        # 显示调试信息
+        if debug_info.get("is_mock"):
+            st.warning("⚠️ **当前使用 Mock 模式**（非真实 AI 分析）")
+            if debug_info.get("error"):
+                st.error(f"错误原因: {debug_info['error']}")
+        else:
+            st.success("✅ **已调用 MIMO API 进行真实 AI 分析**")
 
         # 展示结果
         st.markdown("---")
