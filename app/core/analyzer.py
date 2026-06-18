@@ -109,11 +109,19 @@ def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
         return result, debug_info
 
     except Exception as e:
-        # API 调用失败，返回 Mock 数据并记录错误
-        debug_info["is_mock"] = True
+        # API 调用失败，返回错误信息（不 fallback 到 Mock）
+        debug_info["is_mock"] = False
         debug_info["error"] = str(e)
         print(f"API 调用失败: {e}")
-        return _mock_analyze(request), debug_info
+        
+        # 返回一个错误提示结果
+        return AnalysisResult(
+            match_score=0,
+            summary=f"❌ API 调用失败: {str(e)[:100]}...",
+            match_points=[],
+            gaps=[],
+            suggestions=[],
+        ), debug_info
 
 
 def _parse_response(content: str) -> AnalysisResult:
