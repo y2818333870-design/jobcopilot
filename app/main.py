@@ -18,6 +18,46 @@ from app.core.cover_letter import generate_cover_letter
 from app.core.pdf_parser import extract_text_from_pdf
 from app.storage.database import get_recent_analyses
 
+# ==================== Demo 数据 ====================
+DEMO_RESUME = """张三
+北京大学 计算机科学与技术 本科
+GPA: 3.8/4.0
+
+技能：Python, Java, SQL, Git, Docker, FastAPI, Spring Boot
+
+实习经历：
+1. 字节跳动 后端开发实习生 (2024.06-2024.09)
+   - 负责推荐系统后端开发，使用 Python + FastAPI
+   - 优化数据库查询，QPS 提升 30%
+   - 参与设计分布式缓存方案
+
+2. 阿里云 开发实习生 (2023.12-2024.03)
+   - 参与微服务架构设计，使用 Java + Spring Boot
+   - 编写单元测试，代码覆盖率达到 85%
+
+项目经验：
+1. 在线商城系统
+   - 技术栈：Python + Django + MySQL + Redis
+   - 支持 1000+ 并发用户，日均订单 5000+
+"""
+
+DEMO_JD = """岗位：后端开发工程师
+公司：某互联网公司
+
+职责：
+1. 负责公司核心业务系统的后端开发与维护
+2. 参与系统架构设计和技术方案评审
+3. 编写高质量代码，确保系统稳定性和可扩展性
+
+要求：
+1. 计算机相关专业本科及以上学历
+2. 熟悉 Python 或 Java 编程语言
+3. 了解 MySQL、Redis 等数据库技术
+4. 有实习经验者优先
+5. 良好的沟通能力和团队协作精神
+6. 了解分布式系统、微服务架构者加分
+"""
+
 # ==================== 页面配置 ====================
 st.set_page_config(
     page_title="AI 求职副驾驶",
@@ -53,6 +93,25 @@ with st.sidebar:
 st.title("📄 AI 求职副驾驶")
 st.markdown("**输入简历 + 粘贴 JD = 获取匹配分析和优化建议**")
 
+# Demo 按钮
+st.markdown("---")
+col_demo1, col_demo2, col_demo3 = st.columns([1, 1, 2])
+with col_demo1:
+    demo_btn = st.button("🎯 一键填入示例", use_container_width=True, help="点击填入示例简历和 JD，快速体验功能")
+with col_demo2:
+    clear_btn = st.button("🗑️ 清空输入", use_container_width=True, help="清空所有输入内容")
+
+# 处理 Demo 按钮
+if demo_btn:
+    st.session_state['resume_text'] = DEMO_RESUME
+    st.session_state['jd_text'] = DEMO_JD
+    st.rerun()
+
+if clear_btn:
+    st.session_state['resume_text'] = ""
+    st.session_state['jd_text'] = ""
+    st.rerun()
+
 # 两列布局
 col1, col2 = st.columns(2)
 
@@ -83,7 +142,7 @@ with col1:
         "粘贴简历内容（或上传 PDF 后自动填入）",
         value=st.session_state.get('resume_text', ''),
         height=250,
-        placeholder="在这里粘贴你的简历内容...\n\n示例：\n张三\n北京大学 计算机科学与技术 本科\n熟悉 Python、Java，有 2 段实习经历...",
+        placeholder="在这里粘贴你的简历内容...\n\n点击上方「🎯 一键填入示例」快速体验 →",
         key="resume_input"
     )
 
@@ -91,8 +150,9 @@ with col2:
     st.subheader("🎯 目标岗位 JD")
     jd_text = st.text_area(
         "粘贴职位描述",
+        value=st.session_state.get('jd_text', ''),
         height=250,
-        placeholder="在这里粘贴目标岗位的职位描述...\n\n示例：\n岗位：后端开发工程师\n要求：\n1. 熟悉 Python/Java\n2. 了解数据库\n3. 良好的沟通能力...",
+        placeholder="在这里粘贴目标岗位的职位描述...\n\n点击上方「🎯 一键填入示例」快速体验 →",
         key="jd_input"
     )
 
@@ -111,9 +171,9 @@ with col_btn2:
 if analyze_btn:
     # 输入校验
     if not jd_text or not jd_text.strip():
-        st.warning("⚠️ 请先粘贴目标岗位的 JD")
+        st.warning("⚠️ 请先粘贴目标岗位的 JD，或点击「🎯 一键填入示例」快速体验")
     elif not resume_text or not resume_text.strip():
-        st.warning("⚠️ 请先粘贴简历内容或上传 PDF")
+        st.warning("⚠️ 请先粘贴简历内容或上传 PDF，或点击「🎯 一键填入示例」快速体验")
     else:
         # 构造请求
         request = AnalysisRequest(
@@ -122,7 +182,7 @@ if analyze_btn:
         )
 
         # 调用分析
-        with st.spinner("正在分析中..."):
+        with st.spinner("🤖 AI 正在分析简历与岗位的匹配度..."):
             result, debug_info = analyze_resume(request)
 
         # 显示调试信息
@@ -162,35 +222,44 @@ if analyze_btn:
         # 匹配点
         with col_match:
             st.markdown("### ✅ 匹配点")
-            for i, point in enumerate(result.match_points, 1):
-                st.markdown(f"**{i}. {point.title}**")
-                st.caption(point.description)
+            if result.match_points:
+                for i, point in enumerate(result.match_points, 1):
+                    st.markdown(f"**{i}. {point.title}**")
+                    st.caption(point.description)
+            else:
+                st.caption("暂无匹配点")
 
         # 差距
         with col_gap:
             st.markdown("### ⚠️ 差距/缺口")
-            severity_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}
-            for gap in result.gaps:
-                icon = severity_icon.get(gap.severity, "⚪")
-                st.markdown(f"**{icon} {gap.title}**")
-                st.caption(gap.description)
+            if result.gaps:
+                severity_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+                for gap in result.gaps:
+                    icon = severity_icon.get(gap.severity, "⚪")
+                    st.markdown(f"**{icon} {gap.title}**")
+                    st.caption(gap.description)
+            else:
+                st.caption("暂无差距")
 
         # 优化建议
         with col_suggest:
             st.markdown("### 💡 优化建议")
-            for i, sug in enumerate(result.suggestions, 1):
-                st.markdown(f"**{i}. [{sug.category}]**")
-                st.caption(sug.content)
+            if result.suggestions:
+                for i, sug in enumerate(result.suggestions, 1):
+                    st.markdown(f"**{i}. [{sug.category}]**")
+                    st.caption(sug.content)
+            else:
+                st.caption("暂无建议")
 
 # ==================== 求职信生成 ====================
 if letter_btn:
     if not jd_text or not jd_text.strip():
-        st.warning("⚠️ 请先粘贴目标岗位的 JD")
+        st.warning("⚠️ 请先粘贴目标岗位的 JD，或点击「🎯 一键填入示例」快速体验")
     elif not resume_text or not resume_text.strip():
-        st.warning("⚠️ 请先粘贴简历内容或上传 PDF")
+        st.warning("⚠️ 请先粘贴简历内容或上传 PDF，或点击「🎯 一键填入示例」快速体验")
     else:
         # 调用求职信生成
-        with st.spinner("正在生成求职信..."):
+        with st.spinner("✍️ AI 正在生成求职信..."):
             cover_letter, debug_info = generate_cover_letter(
                 resume_text.strip(),
                 jd_text.strip()
@@ -249,8 +318,8 @@ if recent_analyses:
                 for sug in record['suggestions']:
                     st.markdown(f"- [{sug['category']}] {sug['content']}")
 else:
-    st.info("📝 暂无分析记录，开始你的第一次分析吧！")
+    st.info("📝 暂无分析记录，点击「🎯 一键填入示例」后开始你的第一次分析吧！")
 
 # ==================== 页脚 ====================
 st.markdown("---")
-st.caption("JobCopilot v0.1.0 | AI 求职副驾驶")
+st.caption("JobCopilot v0.1.0 | AI 求职副驾驶 | Powered by MiMo")
