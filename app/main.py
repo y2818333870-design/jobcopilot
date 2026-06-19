@@ -137,12 +137,17 @@ with col1:
             extracted_text = extract_text_from_pdf(uploaded_file)
         
         if extracted_text and not extracted_text.startswith("❌"):
-            st.success(f"✅ PDF 解析成功，共提取 {len(extracted_text)} 个字符")
-            # 将提取的文本存入 session state
-            st.session_state['resume_input'] = extracted_text
-            st.rerun()
+            # 检查提取的文本是否为空或太短
+            if len(extracted_text.strip()) < 10:
+                st.warning("⚠️ PDF 解析成功，但提取的文本内容较少。可能是扫描件/图片 PDF，建议手动粘贴简历内容。")
+            else:
+                st.success(f"✅ PDF 解析成功，共提取 {len(extracted_text)} 个字符")
+                # 将提取的文本存入 session state
+                st.session_state['resume_input'] = extracted_text
+                st.rerun()
         else:
-            st.error(extracted_text)
+            st.error(f"❌ PDF 解析失败: {extracted_text}")
+            st.info("💡 提示：如果是扫描件/图片 PDF，请手动粘贴简历内容。")
     
     # 简历文本输入框
     resume_text = st.text_area(
