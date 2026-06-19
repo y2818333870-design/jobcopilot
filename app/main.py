@@ -15,6 +15,7 @@ from app.config import get_api_key, get_model
 from app.models.schemas import AnalysisRequest
 from app.core.analyzer import analyze_resume
 from app.core.cover_letter import generate_cover_letter
+from app.storage.database import get_recent_analyses
 
 # ==================== 页面配置 ====================
 st.set_page_config(
@@ -32,6 +33,7 @@ with st.sidebar:
     st.markdown("- 🎯 粘贴岗位 JD")
     st.markdown("- ✨ AI 匹配分析")
     st.markdown("- 📝 生成求职信")
+    st.markdown("- 📋 历史记录")
     st.markdown("---")
 
     # API 状态检查（运行时读取）
@@ -184,6 +186,47 @@ if letter_btn:
 
         # 复制按钮
         st.code(cover_letter, language=None)
+
+# ==================== 历史记录 ====================
+st.markdown("---")
+st.subheader("📋 分析历史记录")
+
+# 获取最近的分析记录
+recent_analyses = get_recent_analyses(limit=5)
+
+if recent_analyses:
+    for i, record in enumerate(recent_analyses, 1):
+        with st.expander(f"📊 记录 {i} - 匹配度: {record['match_score']}分 - {record['created_at'][:16]}"):
+            col_info, col_score = st.columns([3, 1])
+            
+            with col_info:
+                st.markdown(f"**简历摘要**: {record['resume_text'][:100]}...")
+                st.markdown(f"**JD 摘要**: {record['jd_text'][:100]}...")
+            
+            with col_score:
+                score = record['match_score']
+                if score >= 80:
+                    st.success(f"🟢 {score}分")
+                elif score >= 60:
+                    st.warning(f"🟡 {score}分")
+                else:
+                    st.error(f"🔴 {score}分")
+            
+            st.markdown(f"**总体评价**: {record['summary']}")
+            
+            # 显示匹配点
+            if record.get('match_points'):
+                st.markdown("**匹配点**:")
+                for point in record['match_points']:
+                    st.markdown(f"- {point['title']}: {point['description']}")
+            
+            # 显示建议
+            if record.get('suggestions'):
+                st.markdown("**优化建议**:")
+                for sug in record['suggestions']:
+                    st.markdown(f"- [{sug['category']}] {sug['content']}")
+else:
+    st.info("📝 暂无分析记录，开始你的第一次分析吧！")
 
 # ==================== 页脚 ====================
 st.markdown("---")

@@ -14,6 +14,7 @@ from app.models.schemas import (
     GapItem,
     Suggestion,
 )
+from app.storage.database import save_analysis
 
 # Prompt 模板
 ANALYZE_PROMPT = """你是一位资深的求职顾问。请分析以下简历与目标岗位的匹配程度。
@@ -76,7 +77,10 @@ def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
     if not api_key:
         debug_info["is_mock"] = True
         debug_info["error"] = "未配置 API Key"
-        return _mock_analyze(request), debug_info
+        result = _mock_analyze(request)
+        # 保存到数据库
+        _save_to_db(request, result)
+        return result, debug_info
 
     try:
         # 初始化 OpenAI 客户端（兼容 MIMO API）
@@ -106,6 +110,8 @@ def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
         # 解析响应
         content = response.choices[0].message.content
         result = _parse_response(content)
+        # 保存到数据库
+        _save_to_db(request, result)
         return result, debug_info
 
     except Exception as e:
@@ -115,13 +121,30 @@ def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
         print(f"API 调用失败: {e}")
         
         # 返回一个错误提示结果
-        return AnalysisResult(
+        result = AnalysisResult(
             match_score=0,
             summary=f"❌ API 调用失败: {str(e)[:100]}...",
             match_points=[],
             gaps=[],
             suggestions=[],
-        ), debug_info
+        )
+        return result, debug_info
+
+
+def _save_to_db(request: AnalysisRequest, result: AnalysisResult):
+    """保存分析结果到数据库"""
+    try:
+        save_analysis(
+            resume_text=request.resume_text,
+            jd_text=request.jd_text,
+            match_score=result.match_score,
+            summary=result.summary,
+            match_points=[p.model_dump() for p in result.match_points],
+            gaps=[g.model_dump() for g in result.gaps],
+            suggestions=[s.model_dump() for s in result.suggestions],
+        )
+    except Exception as e:
+        print(f"保存到数据库失败: {e}")
 
 
 def _parse_response(content: str) -> AnalysisResult:
