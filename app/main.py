@@ -14,6 +14,7 @@ import streamlit as st
 from app.config import get_api_key, get_model
 from app.models.schemas import AnalysisRequest
 from app.core.analyzer import analyze_resume
+from app.core.cover_letter import generate_cover_letter
 
 # ==================== 页面配置 ====================
 st.set_page_config(
@@ -156,14 +157,33 @@ if analyze_btn:
                 st.markdown(f"**{i}. [{sug.category}]**")
                 st.caption(sug.content)
 
-# ==================== 求职信（占位） ====================
+# ==================== 求职信生成 ====================
 if letter_btn:
     if not jd_text or not jd_text.strip():
         st.warning("⚠️ 请先粘贴目标岗位的 JD")
     elif not resume_text or not resume_text.strip():
         st.warning("⚠️ 请先粘贴简历内容")
     else:
-        st.info("🔜 求职信生成功能开发中，敬请期待...")
+        # 调用求职信生成
+        with st.spinner("正在生成求职信..."):
+            cover_letter, debug_info = generate_cover_letter(
+                resume_text.strip(),
+                jd_text.strip()
+            )
+
+        # 显示调试信息
+        if debug_info.get("error"):
+            st.warning(f"⚠️ {debug_info['error']}")
+        elif debug_info.get("api_called"):
+            st.success("✅ **已调用 MIMO API 生成求职信**")
+
+        # 展示求职信
+        st.markdown("---")
+        st.subheader("📝 生成的求职信")
+        st.markdown(cover_letter)
+
+        # 复制按钮
+        st.code(cover_letter, language=None)
 
 # ==================== 页脚 ====================
 st.markdown("---")
