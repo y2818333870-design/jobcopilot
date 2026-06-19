@@ -65,6 +65,12 @@ st.set_page_config(
     layout="wide",
 )
 
+# ==================== 初始化 session state ====================
+if 'resume_text' not in st.session_state:
+    st.session_state['resume_text'] = ''
+if 'jd_text' not in st.session_state:
+    st.session_state['jd_text'] = ''
+
 # ==================== 侧边栏 ====================
 with st.sidebar:
     st.title("🚀 AI 求职副驾驶")
@@ -134,6 +140,7 @@ with col1:
             st.success(f"✅ PDF 解析成功，共提取 {len(extracted_text)} 个字符")
             # 将提取的文本存入 session state
             st.session_state['resume_text'] = extracted_text
+            st.rerun()
         else:
             st.error(extracted_text)
     
