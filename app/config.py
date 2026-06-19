@@ -40,7 +40,9 @@ def get_base_url() -> str:
 
 def get_model() -> str:
     """获取模型名称"""
-    return os.getenv("OPENAI_MODEL") or _read_secrets("OPENAI_MODEL") or "gpt-4o-mini"
+    model = os.getenv("OPENAI_MODEL") or _read_secrets("OPENAI_MODEL") or "gpt-4o-mini"
+    # MIMO API 可能需要小写模型名称
+    return model.lower() if model.startswith("MiMo") or model.startswith("mimo") else model
 
 
 # ==================== 路径配置 ====================
