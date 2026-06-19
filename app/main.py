@@ -66,10 +66,10 @@ st.set_page_config(
 )
 
 # ==================== 初始化 session state ====================
-if 'resume_text' not in st.session_state:
-    st.session_state['resume_text'] = ''
-if 'jd_text' not in st.session_state:
-    st.session_state['jd_text'] = ''
+if 'resume_input' not in st.session_state:
+    st.session_state['resume_input'] = ''
+if 'jd_input' not in st.session_state:
+    st.session_state['jd_input'] = ''
 
 # ==================== 侧边栏 ====================
 with st.sidebar:
@@ -109,13 +109,13 @@ with col_demo2:
 
 # 处理 Demo 按钮
 if demo_btn:
-    st.session_state['resume_text'] = DEMO_RESUME
-    st.session_state['jd_text'] = DEMO_JD
+    st.session_state['resume_input'] = DEMO_RESUME
+    st.session_state['jd_input'] = DEMO_JD
     st.rerun()
 
 if clear_btn:
-    st.session_state['resume_text'] = ""
-    st.session_state['jd_text'] = ""
+    st.session_state['resume_input'] = ""
+    st.session_state['jd_input'] = ""
     st.rerun()
 
 # 两列布局
@@ -139,7 +139,7 @@ with col1:
         if extracted_text and not extracted_text.startswith("❌"):
             st.success(f"✅ PDF 解析成功，共提取 {len(extracted_text)} 个字符")
             # 将提取的文本存入 session state
-            st.session_state['resume_text'] = extracted_text
+            st.session_state['resume_input'] = extracted_text
             st.rerun()
         else:
             st.error(extracted_text)
@@ -147,7 +147,6 @@ with col1:
     # 简历文本输入框
     resume_text = st.text_area(
         "粘贴简历内容（或上传 PDF 后自动填入）",
-        value=st.session_state.get('resume_text', ''),
         height=250,
         placeholder="在这里粘贴你的简历内容...\n\n点击上方「🎯 一键填入示例」快速体验 →",
         key="resume_input"
@@ -157,7 +156,6 @@ with col2:
     st.subheader("🎯 目标岗位 JD")
     jd_text = st.text_area(
         "粘贴职位描述",
-        value=st.session_state.get('jd_text', ''),
         height=250,
         placeholder="在这里粘贴目标岗位的职位描述...\n\n点击上方「🎯 一键填入示例」快速体验 →",
         key="jd_input"
