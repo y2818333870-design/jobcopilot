@@ -66,10 +66,10 @@ st.set_page_config(
 )
 
 # ==================== 初始化 session state ====================
-if 'resume_input' not in st.session_state:
-    st.session_state['resume_input'] = ''
-if 'jd_input' not in st.session_state:
-    st.session_state['jd_input'] = ''
+if 'resume_text' not in st.session_state:
+    st.session_state['resume_text'] = ''
+if 'jd_text' not in st.session_state:
+    st.session_state['jd_text'] = ''
 
 # ==================== 侧边栏 ====================
 with st.sidebar:
@@ -109,13 +109,13 @@ with col_demo2:
 
 # 处理 Demo 按钮
 if demo_btn:
-    st.session_state['resume_input'] = DEMO_RESUME
-    st.session_state['jd_input'] = DEMO_JD
+    st.session_state['resume_text'] = DEMO_RESUME
+    st.session_state['jd_text'] = DEMO_JD
     st.rerun()
 
 if clear_btn:
-    st.session_state['resume_input'] = ""
-    st.session_state['jd_input'] = ""
+    st.session_state['resume_text'] = ""
+    st.session_state['jd_text'] = ""
     st.rerun()
 
 # 两列布局
@@ -143,8 +143,7 @@ with col1:
             else:
                 st.success(f"✅ PDF 解析成功，共提取 {len(extracted_text)} 个字符")
                 # 将提取的文本存入 session state
-                st.session_state['resume_input'] = extracted_text
-                st.rerun()
+                st.session_state['resume_text'] = extracted_text
         else:
             st.error(f"❌ PDF 解析失败: {extracted_text}")
             st.info("💡 提示：如果是扫描件/图片 PDF，请手动粘贴简历内容。")
@@ -152,6 +151,7 @@ with col1:
     # 简历文本输入框
     resume_text = st.text_area(
         "粘贴简历内容（或上传 PDF 后自动填入）",
+        value=st.session_state.get('resume_text', ''),
         height=250,
         placeholder="在这里粘贴你的简历内容...\n\n点击上方「🎯 一键填入示例」快速体验 →",
         key="resume_input"
@@ -161,6 +161,7 @@ with col2:
     st.subheader("🎯 目标岗位 JD")
     jd_text = st.text_area(
         "粘贴职位描述",
+        value=st.session_state.get('jd_text', ''),
         height=250,
         placeholder="在这里粘贴目标岗位的职位描述...\n\n点击上方「🎯 一键填入示例」快速体验 →",
         key="jd_input"
@@ -179,16 +180,20 @@ with col_btn2:
 
 # ==================== 分析结果展示 ====================
 if analyze_btn:
+    # 获取最新的输入值
+    current_resume = st.session_state.get('resume_input', '') or resume_text
+    current_jd = st.session_state.get('jd_input', '') or jd_text
+    
     # 输入校验
-    if not jd_text or not jd_text.strip():
+    if not current_jd or not current_jd.strip():
         st.warning("⚠️ 请先粘贴目标岗位的 JD，或点击「🎯 一键填入示例」快速体验")
-    elif not resume_text or not resume_text.strip():
+    elif not current_resume or not current_resume.strip():
         st.warning("⚠️ 请先粘贴简历内容或上传 PDF，或点击「🎯 一键填入示例」快速体验")
     else:
         # 构造请求
         request = AnalysisRequest(
-            resume_text=resume_text.strip(),
-            jd_text=jd_text.strip(),
+            resume_text=current_resume.strip(),
+            jd_text=current_jd.strip(),
         )
 
         # 调用分析
@@ -263,16 +268,20 @@ if analyze_btn:
 
 # ==================== 求职信生成 ====================
 if letter_btn:
-    if not jd_text or not jd_text.strip():
+    # 获取最新的输入值
+    current_resume = st.session_state.get('resume_input', '') or resume_text
+    current_jd = st.session_state.get('jd_input', '') or jd_text
+    
+    if not current_jd or not current_jd.strip():
         st.warning("⚠️ 请先粘贴目标岗位的 JD，或点击「🎯 一键填入示例」快速体验")
-    elif not resume_text or not resume_text.strip():
+    elif not current_resume or not current_resume.strip():
         st.warning("⚠️ 请先粘贴简历内容或上传 PDF，或点击「🎯 一键填入示例」快速体验")
     else:
         # 调用求职信生成
         with st.spinner("✍️ AI 正在生成求职信..."):
             cover_letter, debug_info = generate_cover_letter(
-                resume_text.strip(),
-                jd_text.strip()
+                current_resume.strip(),
+                current_jd.strip()
             )
 
         # 显示调试信息
