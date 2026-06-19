@@ -109,6 +109,8 @@ def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
 
         # 解析响应
         content = response.choices[0].message.content
+        print(f"API 返回内容: {content[:200]}...")  # 调试日志
+        
         result = _parse_response(content)
         # 保存到数据库
         _save_to_db(request, result)
@@ -155,8 +157,12 @@ def _parse_response(content: str) -> AnalysisResult:
             content = content.split("```json")[1].split("```")[0]
         elif "```" in content:
             content = content.split("```")[1].split("```")[0]
-
-        data = json.loads(content.strip())
+        
+        # 清理内容：移除前后空白字符
+        content = content.strip()
+        
+        # 尝试解析 JSON
+        data = json.loads(content)
 
         return AnalysisResult(
             match_score=data.get("match_score", 60),
@@ -171,10 +177,20 @@ def _parse_response(content: str) -> AnalysisResult:
                 Suggestion(**s) for s in data.get("suggestions", [])
             ],
         )
-    except Exception as e:
+    except json.JSONDecodeError as e:
         print(f"JSON 解析失败: {e}")
-        print(f"原始内容: {content}")
+        print(f"原始内容: {content[:500]}...")
         # 解析失败，返回默认结果
+        return AnalysisResult(
+            match_score=50,
+            summary="AI 分析完成，但结果解析异常，请重试。",
+            match_points=[],
+            gaps=[],
+            suggestions=[],
+        )
+    except Exception as e:
+        print(f"解析响应失败: {e}")
+        print(f"原始内容: {content[:500]}...")
         return AnalysisResult(
             match_score=50,
             summary="AI 分析完成，但结果解析异常，请重试。",
