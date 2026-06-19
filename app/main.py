@@ -15,6 +15,7 @@ from app.config import get_api_key, get_model
 from app.models.schemas import AnalysisRequest
 from app.core.analyzer import analyze_resume
 from app.core.cover_letter import generate_cover_letter
+from app.core.pdf_parser import extract_text_from_pdf
 from app.storage.database import get_recent_analyses
 
 # ==================== 页面配置 ====================
@@ -29,7 +30,7 @@ with st.sidebar:
     st.title("🚀 AI 求职副驾驶")
     st.markdown("---")
     st.markdown("### 功能")
-    st.markdown("- 📄 输入简历")
+    st.markdown("- 📄 输入简历（支持 PDF 上传）")
     st.markdown("- 🎯 粘贴岗位 JD")
     st.markdown("- ✨ AI 匹配分析")
     st.markdown("- 📝 生成求职信")
@@ -57,8 +58,30 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📄 你的简历")
+    
+    # PDF 上传区域
+    uploaded_file = st.file_uploader(
+        "上传 PDF 简历（可选）",
+        type=["pdf"],
+        help="上传 PDF 格式的简历，系统会自动提取文字内容"
+    )
+    
+    # 如果上传了 PDF，提取文本
+    if uploaded_file is not None:
+        with st.spinner("正在解析 PDF..."):
+            extracted_text = extract_text_from_pdf(uploaded_file)
+        
+        if extracted_text and not extracted_text.startswith("❌"):
+            st.success(f"✅ PDF 解析成功，共提取 {len(extracted_text)} 个字符")
+            # 将提取的文本存入 session state
+            st.session_state['resume_text'] = extracted_text
+        else:
+            st.error(extracted_text)
+    
+    # 简历文本输入框
     resume_text = st.text_area(
-        "粘贴简历内容",
+        "粘贴简历内容（或上传 PDF 后自动填入）",
+        value=st.session_state.get('resume_text', ''),
         height=250,
         placeholder="在这里粘贴你的简历内容...\n\n示例：\n张三\n北京大学 计算机科学与技术 本科\n熟悉 Python、Java，有 2 段实习经历...",
         key="resume_input"
@@ -90,7 +113,7 @@ if analyze_btn:
     if not jd_text or not jd_text.strip():
         st.warning("⚠️ 请先粘贴目标岗位的 JD")
     elif not resume_text or not resume_text.strip():
-        st.warning("⚠️ 请先粘贴简历内容")
+        st.warning("⚠️ 请先粘贴简历内容或上传 PDF")
     else:
         # 构造请求
         request = AnalysisRequest(
@@ -164,7 +187,7 @@ if letter_btn:
     if not jd_text or not jd_text.strip():
         st.warning("⚠️ 请先粘贴目标岗位的 JD")
     elif not resume_text or not resume_text.strip():
-        st.warning("⚠️ 请先粘贴简历内容")
+        st.warning("⚠️ 请先粘贴简历内容或上传 PDF")
     else:
         # 调用求职信生成
         with st.spinner("正在生成求职信..."):
