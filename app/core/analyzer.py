@@ -4,7 +4,7 @@
 """
 
 import json
-import streamlit as st
+import re
 from openai import OpenAI
 from app.config import get_api_key, get_base_url, get_model
 from app.models.schemas import (
@@ -16,7 +16,6 @@ from app.models.schemas import (
 )
 from app.storage.database import save_analysis
 
-# Prompt 模板
 ANALYZE_PROMPT = """你是一位资深的求职顾问。请分析以下简历与目标岗位的匹配程度。
 
 ## 目标岗位 JD
@@ -25,41 +24,27 @@ ANALYZE_PROMPT = """你是一位资深的求职顾问。请分析以下简历与
 ## 应聘者简历
 {resume}
 
-## 请以 JSON 格式输出以下内容：
+## 请严格以 JSON 格式输出，不要添加任何其他文字：
 
 {{
-  "match_score": 0-100的整数评分,
+  "match_score": 75,
   "summary": "一句话总体评价",
   "match_points": [
-    {{"title": "匹配点标题", "description": "说明"}},
-    ...
+    {{"title": "匹配点标题", "description": "说明"}}
   ],
   "gaps": [
-    {{"title": "缺口标题", "description": "说明", "severity": "high/medium/low"}},
-    ...
+    {{"title": "缺口标题", "description": "说明", "severity": "high"}}
   ],
   "suggestions": [
-    {{"category": "技能/经历/格式/关键词", "content": "具体建议"}},
-    ...
+    {{"category": "技能", "content": "具体建议"}}
   ]
 }}
 
-要求：
-1. match_points 最多 5 条
-2. gaps 最多 5 条
-3. suggestions 最多 5 条
-4. 用中文回答
-5. 只输出 JSON，不要其他内容
-"""
+注意：只输出 JSON，不要输出其他任何文字。"""
 
 
 def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
-    """
-    分析简历与岗位的匹配度
-    调用 MIMO API 进行真实分析
-    
-    返回: (分析结果, 调试信息)
-    """
+    """分析简历与岗位的匹配度"""
     api_key = get_api_key()
     base_url = get_base_url()
     model = get_model()
@@ -73,56 +58,39 @@ def analyze_resume(request: AnalysisRequest) -> tuple[AnalysisResult, dict]:
         "is_mock": False,
     }
 
-    # 如果没有配置 API Key，返回 Mock 数据
     if not api_key:
         debug_info["is_mock"] = True
         debug_info["error"] = "未配置 API Key"
         result = _mock_analyze(request)
-        # 保存到数据库
         _save_to_db(request, result)
         return result, debug_info
 
     try:
-        # 初始化 OpenAI 客户端（兼容 MIMO API）
-        client = OpenAI(
-            api_key=api_key,
-            base_url=base_url,
-        )
-
-        # 构造 prompt
-        prompt = ANALYZE_PROMPT.format(
-            jd=request.jd_text,
-            resume=request.resume_text,
-        )
-
-        # 调用 API
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        prompt = ANALYZE_PROMPT.format(jd=request.jd_text, resume=request.resume_text)
+        
         debug_info["api_called"] = True
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "你是 MiMo，一个由小米开发的 AI 助手。"},
+                {"role": "system", "content": "你是 MiMo，一个由小米开发的 AI 助手。请严格只输出 JSON。"},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
             max_tokens=2000,
         )
 
-        # 解析响应
         content = response.choices[0].message.content
-        print(f"API 返回内容: {content[:200]}...")  # 调试日志
+        print(f"API 返回内容: {content[:300]}...")
         
         result = _parse_response(content)
-        # 保存到数据库
         _save_to_db(request, result)
         return result, debug_info
 
     except Exception as e:
-        # API 调用失败，返回错误信息（不 fallback 到 Mock）
         debug_info["is_mock"] = False
         debug_info["error"] = str(e)
         print(f"API 调用失败: {e}")
-        
-        # 返回一个错误提示结果
         result = AnalysisResult(
             match_score=0,
             summary=f"❌ API 调用失败: {str(e)[:100]}...",
@@ -150,37 +118,43 @@ def _save_to_db(request: AnalysisRequest, result: AnalysisResult):
 
 
 def _parse_response(content: str) -> AnalysisResult:
-    """解析 AI 返回的 JSON"""
+    """解析 AI 返回的 JSON（增强容错）"""
     try:
-        # 尝试提取 JSON（可能被 markdown 包裹）
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
+        # 1. 尝试直接解析
+        try:
+            data = json.loads(content.strip())
+            return _build_result(data)
+        except json.JSONDecodeError:
+            pass
         
-        # 清理内容：移除前后空白字符
-        content = content.strip()
+        # 2. 提取 markdown 包裹的 JSON
+        patterns = [
+            r'```json\s*(.*?)\s*```',
+            r'```\s*(.*?)\s*```',
+            r'\{[^{}]*"match_score"[^{}]*\}',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                try:
+                    json_str = match.group(1) if '```' in pattern else match.group(0)
+                    data = json.loads(json_str.strip())
+                    return _build_result(data)
+                except (json.JSONDecodeError, IndexError):
+                    continue
         
-        # 尝试解析 JSON
-        data = json.loads(content)
-
-        return AnalysisResult(
-            match_score=data.get("match_score", 60),
-            summary=data.get("summary", "分析完成"),
-            match_points=[
-                MatchPoint(**p) for p in data.get("match_points", [])
-            ],
-            gaps=[
-                GapItem(**g) for g in data.get("gaps", [])
-            ],
-            suggestions=[
-                Suggestion(**s) for s in data.get("suggestions", [])
-            ],
-        )
-    except json.JSONDecodeError as e:
-        print(f"JSON 解析失败: {e}")
-        print(f"原始内容: {content[:500]}...")
-        # 解析失败，返回默认结果
+        # 3. 尝试找到第一个 { 和最后一个 }
+        start = content.find('{')
+        end = content.rfind('}')
+        if start != -1 and end != -1 and end > start:
+            try:
+                data = json.loads(content[start:end+1])
+                return _build_result(data)
+            except json.JSONDecodeError:
+                pass
+        
+        # 4. 所有方法都失败，返回默认结果
+        print(f"JSON 解析失败，原始内容: {content[:500]}...")
         return AnalysisResult(
             match_score=50,
             summary="AI 分析完成，但结果解析异常，请重试。",
@@ -188,9 +162,9 @@ def _parse_response(content: str) -> AnalysisResult:
             gaps=[],
             suggestions=[],
         )
+        
     except Exception as e:
         print(f"解析响应失败: {e}")
-        print(f"原始内容: {content[:500]}...")
         return AnalysisResult(
             match_score=50,
             summary="AI 分析完成，但结果解析异常，请重试。",
@@ -198,6 +172,17 @@ def _parse_response(content: str) -> AnalysisResult:
             gaps=[],
             suggestions=[],
         )
+
+
+def _build_result(data: dict) -> AnalysisResult:
+    """从字典构建 AnalysisResult"""
+    return AnalysisResult(
+        match_score=data.get("match_score", 60),
+        summary=data.get("summary", "分析完成"),
+        match_points=[MatchPoint(**p) for p in data.get("match_points", [])],
+        gaps=[GapItem(**g) for g in data.get("gaps", [])],
+        suggestions=[Suggestion(**s) for s in data.get("suggestions", [])],
+    )
 
 
 def _mock_analyze(request: AnalysisRequest) -> AnalysisResult:
