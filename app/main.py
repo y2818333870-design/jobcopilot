@@ -91,6 +91,7 @@ for key, default in [
     ("letter", None),
     ("_auto_analyze", False),
     ("_upload_msg", ""),
+    ("_last_uploaded_file", ""),
 ]:
     if key not in st.session_state:
         st.session_state[key] = default
@@ -115,7 +116,7 @@ with st.sidebar:
         st.warning("⚠️ Mock 模式（无 API Key）")
     st.caption(f"模型: {get_model()}")
     st.markdown("---")
-    st.caption("v0.2.1 · 上传即分析")
+    st.caption("v0.2.2 · 上传即分析")
 
 # ==================== 主页面 ====================
 st.title("📄 AI 求职副驾驶")
@@ -133,6 +134,7 @@ if c2.button("🗑️ 清空"):
     st.session_state.jd = ""
     st.session_state.result = None
     st.session_state.letter = None
+    st.session_state._last_uploaded_file = ""
     st.rerun()
 
 # ==================== 文件上传 ====================
@@ -144,7 +146,10 @@ uploaded = st.file_uploader(
     key="file_uploader",
 )
 
-if uploaded:
+if uploaded and uploaded.name != st.session_state._last_uploaded_file:
+    # 标记已处理，防止 st.rerun() 后重复触发
+    st.session_state._last_uploaded_file = uploaded.name
+
     file_type = uploaded.name.split(".")[-1].lower()
 
     with st.spinner(f"正在解析 {uploaded.name}..."):
@@ -157,13 +162,11 @@ if uploaded:
 
     # 判断解析结果
     if text and not text.startswith("❌") and len(text.strip()) >= MIN_RESUME_LEN:
-        # 写入简历文本
         st.session_state.resume = text
 
         # 判断 JD 是否已填 → 决定是否自动分析
         jd_val = st.session_state.jd
         if jd_val and jd_val.strip() and len(jd_val.strip()) >= MIN_JD_LEN:
-            # JD 有效，设置自动分析标志，rerun 后会一次性消耗
             st.session_state._auto_analyze = True
             st.session_state._upload_msg = f"✅ 简历解析成功（{len(text)} 字），正在自动分析..."
         else:
@@ -178,6 +181,10 @@ if uploaded:
         st.warning(
             f"⚠️ 解析内容过少（{len(text.strip()) if text else 0} 字符），请手动粘贴简历"
         )
+
+    # 解析失败也要重置标记，允许重新上传同名文件
+    if not (text and not text.startswith("❌") and len(text.strip()) >= MIN_RESUME_LEN):
+        st.session_state._last_uploaded_file = ""
 
 # 显示上传后的提示信息（一次性）
 if st.session_state._upload_msg:
@@ -294,4 +301,4 @@ try:
 except Exception as e:
     st.error(f"加载历史记录失败: {e}")
 
-st.caption("JobCopilot v0.2.1")
+st.caption("JobCopilot v0.2.2")
